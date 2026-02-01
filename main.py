@@ -24,12 +24,12 @@ app.add_middleware(
 )
 
 # =========================================================
-# BANCO DE DADOS (RENDER)
+# BANCO DE DADOS
 # =========================================================
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    raise RuntimeError("❌ DATABASE_URL não configurada no Render")
+    raise RuntimeError("❌ DATABASE_URL não configurada")
 
 engine = create_engine(
     DATABASE_URL,
@@ -74,7 +74,7 @@ class SurveyVisitas(BaseModel):
     observacoes_gerais: Optional[str] = None
 
 # =========================================================
-# OPTIONS (PRE-FLIGHT DO SURVEY123)
+# OPTIONS – PRE-FLIGHT (SURVEY123)
 # =========================================================
 @app.options("/survey123")
 async def survey123_options():
@@ -89,19 +89,21 @@ async def survey123_options():
     )
 
 # =========================================================
-# POST – RECEBE O SURVEY
+# POST – CREATE + UPDATE (UPSERT)
 # =========================================================
 @app.post("/survey123")
 def receber_survey(dados: SurveyVisitas):
 
     parametros = dados.model_dump()
-    parametros["data_hora_visita"] = parametros.get("data_hora_visita") or datetime.utcnow()
+    parametros["data_hora_visita"] = (
+        parametros.get("data_hora_visita") or datetime.utcnow()
+    )
 
     try:
         with engine.begin() as conn:
             conn.execute(
                 text("""
-                    INSERT IGNORE INTO survey_visitas (
+                    INSERT INTO survey_visitas (
                         globalid,
                         tipo_registro,
                         data_hora_visita,
@@ -162,6 +164,35 @@ def receber_survey(dados: SurveyVisitas):
                         :desvio,
                         :observacoes_gerais
                     )
+                    ON DUPLICATE KEY UPDATE
+                        tipo_registro = VALUES(tipo_registro),
+                        data_hora_visita = VALUES(data_hora_visita),
+                        fiscal_campo = VALUES(fiscal_campo),
+                        municipio = VALUES(municipio),
+                        corpo_hidrico = VALUES(corpo_hidrico),
+                        tipo_frente = VALUES(tipo_frente),
+                        status_andamento = VALUES(status_andamento),
+                        trecho_adicional = VALUES(trecho_adicional),
+                        status_geral_frente = VALUES(status_geral_frente),
+                        encarregado = VALUES(encarregado),
+                        ajudantes = VALUES(ajudantes),
+                        agentes_socioambientais = VALUES(agentes_socioambientais),
+                        retroescavadeira = VALUES(retroescavadeira),
+                        escavadeira_long_reach = VALUES(escavadeira_long_reach),
+                        escavadeira_17_ton = VALUES(escavadeira_17_ton),
+                        escavadeira_23_ton = VALUES(escavadeira_23_ton),
+                        escavadeira_anfibia = VALUES(escavadeira_anfibia),
+                        dragline_clamshell = VALUES(dragline_clamshell),
+                        caminhao_basculante_7m3 = VALUES(caminhao_basculante_7m3),
+                        caminhao_basculante_12m3 = VALUES(caminhao_basculante_12m3),
+                        caminhao_hidro_vacuo = VALUES(caminhao_hidro_vacuo),
+                        status_avanco_esperado = VALUES(status_avanco_esperado),
+                        extensao_avanco_m2 = VALUES(extensao_avanco_m2),
+                        extensao_avanco_m3 = VALUES(extensao_avanco_m3),
+                        coord_x = VALUES(coord_x),
+                        coord_y = VALUES(coord_y),
+                        desvio = VALUES(desvio),
+                        observacoes_gerais = VALUES(observacoes_gerais)
                 """),
                 parametros
             )
@@ -173,4 +204,3 @@ def receber_survey(dados: SurveyVisitas):
         "status": "ok",
         "globalid": dados.globalid
     }
-
