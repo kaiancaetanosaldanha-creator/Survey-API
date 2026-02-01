@@ -24,12 +24,12 @@ app.add_middleware(
 )
 
 # =========================================================
-# BANCO DE DADOS
+# BANCO DE DADOS (RENDER)
 # =========================================================
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    raise RuntimeError("❌ DATABASE_URL não configurada")
+    raise RuntimeError("❌ DATABASE_URL não configurada no Render")
 
 engine = create_engine(
     DATABASE_URL,
@@ -74,7 +74,7 @@ class SurveyVisitas(BaseModel):
     observacoes_gerais: Optional[str] = None
 
 # =========================================================
-# OPTIONS – PRE-FLIGHT (SURVEY123)
+# OPTIONS (PRE-FLIGHT DO SURVEY123)
 # =========================================================
 @app.options("/survey123")
 async def survey123_options():
@@ -89,15 +89,14 @@ async def survey123_options():
     )
 
 # =========================================================
-# POST – CREATE + UPDATE (UPSERT)
+# POST – CREATE / UPDATE (UPSERT)
 # =========================================================
 @app.post("/survey123")
 def receber_survey(dados: SurveyVisitas):
 
     parametros = dados.model_dump()
-    parametros["data_hora_visita"] = (
-        parametros.get("data_hora_visita") or datetime.utcnow()
-    )
+    parametros["data_hora_visita"] = parametros.get("data_hora_visita") or datetime.utcnow()
+    parametros["updated_at"] = datetime.utcnow()
 
     try:
         with engine.begin() as conn:
@@ -132,7 +131,8 @@ def receber_survey(dados: SurveyVisitas):
                         coord_x,
                         coord_y,
                         desvio,
-                        observacoes_gerais
+                        observacoes_gerais,
+                        updated_at
                     ) VALUES (
                         :globalid,
                         :tipo_registro,
@@ -162,7 +162,8 @@ def receber_survey(dados: SurveyVisitas):
                         :coord_x,
                         :coord_y,
                         :desvio,
-                        :observacoes_gerais
+                        :observacoes_gerais,
+                        :updated_at
                     )
                     ON DUPLICATE KEY UPDATE
                         tipo_registro = VALUES(tipo_registro),
@@ -192,7 +193,8 @@ def receber_survey(dados: SurveyVisitas):
                         coord_x = VALUES(coord_x),
                         coord_y = VALUES(coord_y),
                         desvio = VALUES(desvio),
-                        observacoes_gerais = VALUES(observacoes_gerais)
+                        observacoes_gerais = VALUES(observacoes_gerais),
+                        updated_at = VALUES(updated_at)
                 """),
                 parametros
             )
